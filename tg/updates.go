@@ -33,16 +33,21 @@ func (u *Updates) NextUpdate() (Update, error) {
 			if err != nil {
 				return Update{}, nil
 			}
-			if len(batch) > 0 {
-				newOffset := batch[len(batch)-1].UpdateId + 1
-				u.req.Offset = &newOffset
-			}
+			u.req.Offset = newOffset(u.req.Offset, batch)
 			u.batch = batch
 		}
 	}
 	upd := u.batch[0]
 	u.batch = u.batch[1:]
 	return upd, nil
+}
+
+func newOffset(currentOffset *int32, batch []Update) *int32 {
+	if len(batch) > 0 {
+		newOffset := batch[len(batch)-1].UpdateId + 1
+		return &newOffset
+	}
+	return currentOffset
 }
 
 type ApiResponse struct {
