@@ -3,12 +3,12 @@ package tg
 import (
 	"encoding/json"
 	"fmt"
-	"log"
-	"os"
 )
 
 func MakeUpdates(tg Telega) Updates {
-	return Updates{tg, GetUpdatesReq{}, nil}
+	timeout := 10
+	return Updates{tg,
+		GetUpdatesReq{Offset: nil, Limit: nil, Timeout: &timeout, AllowedUpdates: nil}, nil}
 }
 
 type Updates struct {
@@ -25,26 +25,29 @@ type GetUpdatesReq struct {
 }
 
 func (u *Updates) NextUpdate() (Update, error) {
-	if len(u.batch) == 0 {
-		batch, err := u.FetchUpdates(u.req)
-		msg, _ := json.MarshalIndent(batch, "", "\t")
-		log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile).Println(
-			err, "Fetched updates: ", msg,
-		)
-		if err != nil {
-			return Update{}, nil
+	for {
+		if len(u.batch) > 0 {
+			break
+		} else {
+			batch, err := u.FetchUpdates(u.req)
+			if err != nil {
+				return Update{}, nil
+			}
+			if len(batch) > 0 {
+				newOffset := batch[len(batch)-1].UpdateId + 1
+				u.req.Offset = &newOffset
+			}
+			u.batch = batch
 		}
-		u.batch = batch
 	}
-
 	upd := u.batch[0]
 	u.batch = u.batch[1:]
 	return upd, nil
 }
 
 type ApiResponse struct {
-	Ok     bool        `json:"ok"`
-	Result interface{} `json:"result"`
+	Ok     bool     `json:"ok"`
+	Result []Update `json:"result"`
 }
 
 func (u *Updates) FetchUpdates(req GetUpdatesReq) ([]Update, error) {
@@ -56,15 +59,11 @@ func (u *Updates) FetchUpdates(req GetUpdatesReq) ([]Update, error) {
 
 	status, body, err := u.tg.Call("getUpdates", payload)
 
-	log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile).Println(
-		err, "Fetched : ", string(status), string(body),
-	)
-
 	if err == nil {
 		if status == 200 {
-			var batch []Update
-			resp := ApiResponse{Ok: false, Result: &batch}
+			resp := ApiResponse{}
 			err = json.Unmarshal(body, &resp)
+			batch = resp.Result
 		} else {
 			err = fmt.Errorf(
 				"got status %d getting updates. offset: %d", status, *req.Offset,
