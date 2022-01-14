@@ -1,5 +1,7 @@
 package tg
 
+import "log"
+
 type Bot struct {
 	tg      Telega
 	updates Updates
@@ -10,8 +12,8 @@ type Peasant interface {
 	serve(Update) error
 }
 
-func NewBotPolling(tg Telega, ps Peasant) Bot {
-	return Bot{tg, MakeUpdates(tg), ps}
+func NewBotPolling(tg Telega, ps Peasant, errLg log.Logger) Bot {
+	return Bot{tg, UpdatesPolling(tg), PsErrorCatching{errLg, ps}}
 }
 
 func (bot *Bot) Run() error {

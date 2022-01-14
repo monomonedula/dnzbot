@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-func MakeUpdates(tg Telega) Updates {
+func UpdatesPolling(tg Telega) Updates {
 	timeout := 10
 	return Updates{tg,
 		GetUpdatesReq{Offset: nil, Limit: nil, Timeout: &timeout, AllowedUpdates: nil}, nil}

@@ -2,19 +2,20 @@ package tg
 
 import (
 	"encoding/json"
-	"regexp"
+	"fmt"
+	"log"
 )
 
-type Fork interface {
-	route(Update) (bool, error)
+func PsForkOf(forks ...Fork) PsFork {
+	return PsFork{Forks: forks}
 }
 
 type PsFork struct {
-	forks []Fork
+	Forks []Fork
 }
 
 func (ps PsFork) serve(upd Update) error {
-	for _, fk := range ps.forks {
+	for _, fk := range ps.Forks {
 		routed, err := fk.route(upd)
 		if err != nil {
 			return err
@@ -26,24 +27,12 @@ func (ps PsFork) serve(upd Update) error {
 	return nil
 }
 
-type FkPattern struct {
-	pattern regexp.Regexp
-	ps      Peasant
-}
-
-func (fk FkPattern) route(upd Update) (bool, error) {
-	if fk.pattern.MatchString(upd.Message.Text) {
-		return true, fk.ps.serve(upd)
-	}
-	return false, nil
-}
-
-type PeasantFixedTxt struct {
+type PsFixedTxt struct {
 	Tg  Telega
 	Txt string
 }
 
-func (ps PeasantFixedTxt) serve(upd Update) error {
+func (ps PsFixedTxt) serve(upd Update) error {
 	msg, err := json.Marshal(
 		SendMessage{
 			upd.Message.From.Id,
@@ -62,4 +51,21 @@ func (ps PeasantFixedTxt) serve(upd Update) error {
 type SendMessage struct {
 	ChatId int32  `json:"chat_id"`
 	Text   string `json:"text"`
+}
+
+type PsErrorCatching struct {
+	Log log.Logger
+	Ps  Peasant
+}
+
+func (ps PsErrorCatching) serve(upd Update) error {
+	err := ps.Ps.serve(upd)
+
+	if err != nil {
+		msg, _ := json.Marshal(upd)
+		ps.Log.Println(
+			fmt.Sprintf("Got error while handling %s :", msg), err,
+		)
+	}
+	return nil
 }
